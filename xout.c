@@ -23,6 +23,7 @@
 #include <X11/cursorfont.h>
 #include <X11/Xmu/WinUtil.h>
 #include <X11/XKBlib.h>
+#include <X11/extensions/XKBrules.h>
 #include <unistd.h>
 #include <X11/keysym.h>
 #include <unistd.h>
@@ -43,6 +44,8 @@ static void forward_str(Display *, XEvent *, const char *, Window);
 static void forward_xmotion(Display *, XEvent *, Window);
 static void forward_xkey(Display *, XEvent *, Window);
 static void forward_xbutton(Display *, XEvent *, Window);
+static void update_mapping(Display *, XEvent *);
+static void forward_mapping(Display *, Window);
 
 int
 main(int argc, char **argv)
@@ -82,9 +85,15 @@ main(int argc, char **argv)
 
 	/*
 	 * We use XKB extension because XKeycodeToKeysym is deprecated,
-	 * even though there would be no big harm. Replace
-	 * XkbKeycodeToKeysym with the legacy version if having problems
-	 * with XKB.
+	 * even though there would be no big harm.
+	 * 
+	 * We also need XKB for using the undocumented XkbRF function
+	 * for getting a human-readable layout name so that we can forward
+	 * it to remote for running setxkbmap - for simplicity, not a
+	 * complete solution because this does not obviously send custom
+	 * mappings but custom mappings can be supported by also having
+	 * non-adhoc custom mapping in the remote, named under a proper
+	 * layout for it.
 	 */
 	xkbmaj = XkbMajorVersion;
 	xkbmin = XkbMinorVersion;
@@ -150,6 +159,8 @@ main(int argc, char **argv)
 
 		warp_center(dpy);
 
+		forward_mapping(dpy, target);
+
 		break_keys[0] = toggle_forward_key;
 		break_keys[1] = change_target_key;
 		keysym = grab(dpy, cursor, target, 2, break_keys);
@@ -190,6 +201,9 @@ wait_key(Display *dpy)
 			return XkbKeycodeToKeysym(dpy,
 			    e.xkey.keycode, 0,
 			    e.xkey.state & ShiftMask ? 1 : 0);
+		case MappingNotify:
+			update_mapping(dpy, &e);
+			break;
 		}
 	}
 
@@ -356,6 +370,10 @@ grab(Display *dpy, Cursor cursor, Window target, int nbreak, KeySym *breaks)
 		case MotionNotify:
 			forward_xmotion(dpy, &e, target);
 			break;
+		case MappingNotify:
+			update_mapping(dpy, &e);
+			forward_mapping(dpy, target);
+			break;
 		}
 	}
 
@@ -500,4 +518,36 @@ forward_xmotion(Display *dpy, XEvent *e, Window target)
 
 	/* Forward. */
 	forward_str(dpy, e, s, target);
+}
+
+static void
+update_mapping(Display *dpy, XEvent *e)
+{
+	if (e->xmapping.request == MappingKeyboard)
+		XRefreshKeyboardMapping(&e->xmapping);
+}
+
+#ifndef DFLT_XKB_LAYOUT
+#define DFLT_XKB_LAYOUT "us"
+#endif
+
+static void
+forward_mapping(Display *dpy, Window target)
+{
+	XkbRF_VarDefsRec vd;
+	char *tmp;
+	XEvent e = { 0 };
+	char s[32];
+
+	tmp = NULL;
+	if (!XkbRF_GetNamesProp(dpy, &tmp, &vd) || tmp == NULL) {
+		warnx("couldn't interpret %s", _XKB_RF_NAMES_PROP_ATOM);
+		vd.layout = DFLT_XKB_LAYOUT;
+	}
+
+	if (snprintf(s, sizeof(s), "l %s\r", vd.layout) >= sizeof(s)) {
+		warnx("layout forward did not fit %lu bytes", sizeof(s));
+		return;
+	}
+	forward_str(dpy, &e, s, target);
 }

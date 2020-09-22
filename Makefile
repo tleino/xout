@@ -3,7 +3,7 @@ VERSION:=`date +%Y%m%d`
 bindir=${HOME}/bin
 distdir=${HOME}/dist
 INCLUDES=-I/usr/X11R6/include
-LIBS=-lX11 -lXmu
+LIBS=-lX11 -lXmu -lxkbfile
 CFLAGS=-O2 -Wall -pedantic -std=c99 -Werror
 LDFLAGS=-L/usr/X11R6/lib
 OBJS=${PROGRAM}.o
