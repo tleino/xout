@@ -1,6 +1,6 @@
 /*
  * xout - X11 input forwarder
- * Copyright (c) 2020 Tommi M. Leino <tleino@me.com>
+ * Copyright (c) 2020 Tommi Leino <namhas@gmail.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -121,18 +121,19 @@ main(int argc, char **argv)
 		errx(1, "no KeySym for toggle-forward key");
 	if ((change_target_key = XStringToKeysym("Menu")) == NoSymbol)
 		errx(1, "no KeySym for change-target key");
+
 	XGrabKey(dpy, XKeysymToKeycode(dpy, toggle_forward_key), 0,
 	    RootWindow(dpy, 0), 0, 0, 1);
 	XGrabKey(dpy, XKeysymToKeycode(dpy, change_target_key), 0,
 	    RootWindow(dpy, 0), 0, 0, 1);
 
+	XSync(dpy, False);
+	wait_key(dpy);
+
 	gc = create_text_gc(dpy, "fixed");
+
 	selwin = create_select_window(dpy, gc);
 	XSync(dpy, False);
-
-#if 0
-	target = change_target(dpy, selwin, gc, crosshair);
-#endif
 
 #ifdef __OpenBSD__
 	if (pledge("stdio", NULL) != 0)
@@ -361,7 +362,8 @@ grab(Display *dpy, Cursor cursor, Window target, int nbreak, KeySym *breaks)
 				if (e.type == KeyRelease)
 					npress--;
 			} else if (npress < 1)
-				warnx("skipped sending keyrelease (npress=%d)", npress);
+				warnx("skipped sending keyrelease "
+				    "(npress=%d)", npress);
 			break;
 		case ButtonPress:
 		case ButtonRelease:
