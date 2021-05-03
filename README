@@ -1,0 +1,8 @@
+xout
+====
+
+Forward keyboard and/or mouse input to an X11 window, which may be
+running a terminal session or serial console to a remote X11 server.
+Replaying the inputs is easily possible.
+
+See also: https://github.com/tleino/xin
